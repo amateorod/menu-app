@@ -5,4 +5,3 @@ PyMuPDF
 pdfplumber
 tabula-py
 PyPDF2
-
