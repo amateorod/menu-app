@@ -1,58 +1,70 @@
 import streamlit as st
 import pandas as pd
 import os
+import difflib
 from io import BytesIO
-import openpyxl
+from openpyxl import load_workbook
+from openpyxl.writer.excel import save_virtual_workbook
 
-st.title("Adaptador Automático de Menús por Dietas")
+def load_substitution_db(diet_type):
+    # Recorremos todos los archivos .xlsx del directorio actual
+    for file in os.listdir():
+        if file.endswith(".xlsx"):
+            df = pd.read_excel(file)
+            if 'PLATOS' in df.columns and diet_type in df.columns:
+                return df.set_index('PLATOS')[diet_type].dropna().to_dict()
+    return None
 
-# Cargar todos los archivos Excel que estén en el mismo directorio que app.py
-def cargar_bases_de_datos():
-    archivos = [f for f in os.listdir() if f.endswith('.xlsx') and f != 'Sin título 1 (documento reparado).xlsx']
-    bases = {}
-    for archivo in archivos:
-        try:
-            df = pd.read_excel(archivo)
-            columnas = df.columns.str.upper()
-            df.columns = columnas  # Asegura mayúsculas
-            if 'PLATOS' in columnas:
-                for col in columnas:
-                    if col != 'PLATOS':
-                        bases[col] = df.set_index('PLATOS')[col].dropna().to_dict()
-        except Exception as e:
-            st.warning(f"No se pudo cargar {archivo}: {e}")
-    return bases
+def substitute_foods(input_excel, substitutions):
+    # Cargar el archivo original conservando el formato
+    wb = load_workbook(input_excel)
+    if "Menu sin Recomendación" not in wb.sheetnames:
+        st.error("No se encontró la hoja 'Menu sin Recomendación' en el archivo.")
+        return None
 
-bases_sustituciones = cargar_bases_de_datos()
+    ws = wb["Menu sin Recomendación"]
 
-# Mostrar opciones de dieta en mayúsculas
-opciones_dietas = sorted(bases_sustituciones.keys())
-dieta_seleccionada = st.selectbox("Selecciona una dieta:", opciones_dietas)
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value and isinstance(cell.value, str):
+                closest_match = difflib.get_close_matches(cell.value, substitutions.keys(), n=1, cutoff=0.9)
+                if closest_match:
+                    original = closest_match[0]
+                    replacement = substitutions[original]
+                    cell.value = replacement
 
-archivo_subido = st.file_uploader("Sube el archivo Excel del menú", type=["xlsx"])
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
 
-if archivo_subido and dieta_seleccionada:
-    try:
-        libro = openpyxl.load_workbook(archivo_subido)
-        if "MENU SIN RECOMENDACIÓN" not in libro.sheetnames:
-            st.error("No se encuentra la hoja 'MENU SIN RECOMENDACIÓN'.")
-        else:
-            hoja = libro["MENU SIN RECOMENDACIÓN"]
-            base_sustitucion = bases_sustituciones[dieta_seleccionada]
+st.title("Adaptador de Menús según Dietas")
 
-            for fila in hoja.iter_rows():
-                for celda in fila:
-                    if celda.value and isinstance(celda.value, str):
-                        valor = celda.value.strip().upper()
-                        for no_permitido, permitido in base_sustitucion.items():
-                            if no_permitido.strip().upper() in valor:
-                                celda.value = valor.replace(no_permitido.strip().upper(), permitido.strip().upper())
+uploaded_file = st.file_uploader("Sube tu archivo Excel de menú", type=["xlsx"])
 
-            buffer = BytesIO()
-            libro.save(buffer)
-            buffer.seek(0)
+# Mostrar opciones de dietas detectadas automáticamente
+diet_options = []
+for file in os.listdir():
+    if file.endswith(".xlsx"):
+        df = pd.read_excel(file)
+        if 'PLATOS' in df.columns:
+            for col in df.columns[1:]:
+                if col.upper() not in diet_options:
+                    diet_options.append(col.upper())
 
-            st.success("Archivo corregido con éxito. Descárgalo abajo:")
-            st.download_button("📥 Descargar menú corregido", buffer, file_name="menu_corregido.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    except Exception as e:
-        st.error(f"Error al procesar el archivo: {e}")
+diet_type = st.selectbox("Selecciona el tipo de dieta", sorted(diet_options))
+
+if uploaded_file and diet_type:
+    substitutions = load_substitution_db(diet_type.upper())
+    if substitutions:
+        output = substitute_foods(uploaded_file, substitutions)
+        if output:
+            st.success("Archivo procesado correctamente.")
+            st.download_button(
+                label="Descargar Excel corregido",
+                data=output,
+                file_name="menu_corregido.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    else:
+        st.error("No se encontró una base de datos válida con ese tipo de dieta.")
