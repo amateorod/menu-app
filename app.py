@@ -1,51 +1,55 @@
-
 import streamlit as st
 import pandas as pd
-
-st.set_page_config(page_title="Adaptador automático de menús", layout="centered")
-
-st.title("Adaptador automático de menús según tipo de dieta")
-
-# Cargar archivos Excel disponibles (en el mismo directorio que app.py)
 import os
-archivos_excel = [f for f in os.listdir() if f.endswith(".xlsx")]
+from io import BytesIO
 
-# Detectar dietas según columnas dentro de los archivos
-def detectar_dietas(archivos):
-    dietas = set()
-    for archivo in archivos:
-        try:
-            df = pd.read_excel(archivo)
-            for col in df.columns[2:]:  # Saltamos SEMANAS y PLATOS
-                dietas.add(col.upper())
-        except Exception as e:
-            print(f"No se pudo leer {archivo}: {e}")
-    return sorted(list(dietas))
+st.set_page_config(page_title="Adaptador de Menús", layout="centered")
 
-dietas_disponibles = detectar_dietas(archivos_excel)
+st.title("🍽️ Adaptador de Menús según tipo de dieta")
 
-dieta_seleccionada = st.selectbox("Selecciona el tipo de dieta", dietas_disponibles)
+uploaded_file = st.file_uploader("Sube el archivo Excel del menú", type=["xlsx"])
+tipo_dieta = st.selectbox(
+    "Selecciona el tipo de dieta",
+    ("VEGANO", "OVOLACTOVEGETARIANO", "SIN LACTOSA", "CELIACO", "SIN HUEVO", "SIN FRUTOS SECOS", "SIN LEGUMBRES")
+)
 
-archivo_menu = st.file_uploader("Sube el archivo Excel del menú", type=["xlsx"])
-
-if archivo_menu and dieta_seleccionada:
+if uploaded_file:
     try:
-        df_menu = pd.read_excel(archivo_menu)
-        if dieta_seleccionada not in df_menu.columns.str.upper():
-            st.error(f"No se encontró la columna '{dieta_seleccionada}' en el archivo.")
+        # Cargar el menú original
+        menu_df = pd.read_excel(uploaded_file, engine="openpyxl")
+
+        # Cargar todas las bases de datos de sustitución
+        bd_archivos = [f for f in os.listdir() if f.endswith(".xlsx") and tipo_dieta in f.upper()]
+        if not bd_archivos:
+            st.error(f"No se encontró una base de datos que incluya '{tipo_dieta}' en su nombre.")
         else:
-            # Encontrar la columna real (con mayúsculas y minúsculas exactas)
-            columna_real = [col for col in df_menu.columns if col.upper() == dieta_seleccionada][0]
-            df_corregido = df_menu.copy()
-            df_corregido["PLATOS"] = df_corregido[columna_real]
+            bd_path = bd_archivos[0]
+            bd_df = pd.read_excel(bd_path, engine="openpyxl")
 
-            # Exportar a Excel
-            from io import BytesIO
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_corregido.to_excel(writer, index=False, sheet_name="Menú corregido")
-            output.seek(0)
+            # Buscar la columna 'platos' y la de la dieta elegida
+            if "platos" not in bd_df.columns or tipo_dieta not in bd_df.columns:
+                st.error("La base de datos no contiene las columnas necesarias ('platos' y la dieta seleccionada).")
+            else:
+                # Crear un diccionario de sustituciones
+                sustituciones = dict(zip(bd_df["platos"], bd_df[tipo_dieta]))
 
-            st.download_button("Descargar menú corregido", output, file_name="menu_corregido.xlsx")
+                # Aplicar las sustituciones en todo el DataFrame del menú
+                menu_modificado = menu_df.replace(sustituciones, regex=False)
+
+                # Descargar Excel
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    menu_modificado.to_excel(writer, index=False, sheet_name="Menú adaptado")
+                output.seek(0)
+
+                st.success("Menú adaptado correctamente. Puedes descargarlo a continuación:")
+                st.download_button(
+                    label="📥 Descargar Excel adaptado",
+                    data=output,
+                    file_name="menu_adaptado.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
     except Exception as e:
         st.error(f"Error al procesar el archivo: {e}")
+
