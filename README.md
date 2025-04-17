@@ -1,73 +1,28 @@
-# 🥦 Adaptador de Menús con IA para Restauración Colectiva
+# Menu App - Adaptador de Menús
 
-Esta app permite adaptar menús automáticamente según distintos tipos de dieta y necesidades alimentarias, como:
+Esta aplicación permite adaptar automáticamente un menú en formato Excel según diferentes tipos de dieta (vegana, sin lactosa, sin gluten, etc.).
 
-- Dieta vegana
-- Dieta ovolactovegetariana
-- Dieta sin gluten (celíacos)
-- Dieta sin lactosa
-- Dieta sin frutos secos
-- Dieta sin legumbres
-- Dieta sin huevo
-- Dieta sin cerdo
+## ¿Cómo funciona?
 
-## 🚀 ¿Qué hace esta app?
+1. Sube un archivo Excel con tu menú original.
+2. Selecciona el tipo de dieta en el desplegable.
+3. El menú se modificará automáticamente según las sustituciones definidas en los archivos `.xlsx`.
+4. Descarga el nuevo menú corregido manteniendo el formato original.
 
-🔄 Sube un menú en formato Excel y selecciona el tipo de dieta.  
-🤖 La IA reemplazará automáticamente los alimentos que no se ajustan a esa dieta por opciones alternativas.  
-📄 Puedes descargar el menú corregido en Excel manteniendo el formato original.
+## Instrucciones
 
----
+- Coloca todos los archivos `.xlsx` de las dietas en la misma carpeta que `app.py`.
+- Los archivos deben tener dos columnas: la primera con los alimentos originales y la segunda con los alimentos sustitutos.
+- Asegúrate de que los nombres de los archivos están en mayúsculas para que coincidan con el desplegable.
 
-## 📁 Estructura del repositorio
+## Requisitos
 
-```
-├── app.py                    # Código principal de la app
-├── requirements.txt         # Dependencias necesarias
-├── README.md                # Descripción del proyecto
-└── data/
-    ├── OVOLACTEOVEGETARIANA Y VEGANA.xlsx
-    ├── SIN LACTOSA Y CELIACO.xlsx
-    └── SIN FRUTOS SECOS Y LEGUMBRES.xlsx
-```
+- Python 3.8+
+- Streamlit
+- pandas
+- openpyxl
 
----
+Instala las dependencias con:
 
-## ▶️ Cómo ejecutar la app
-
-1. Clona este repositorio:
-```bash
-git clone https://github.com/tu-usuario/tu-repositorio.git
-```
-
-2. Instala las dependencias:
 ```bash
 pip install -r requirements.txt
-```
-
-3. Ejecuta la app:
-```bash
-streamlit run app.py
-```
-
----
-
-## 📌 Notas
-
-- Asegúrate de subir tu archivo Excel con el menú original.
-- Elige el tipo de dieta desde el menú desplegable.
-- La app mantendrá el formato original del archivo.
-
----
-
-## 💡 Próximas mejoras
-
-- Exportación directa a PDF con formato intacto
-- Versión móvil y web pública
-- Integración con bases de datos online
-
----
-
-## 👩‍🍳 Creado por una técnica en dietética
-
-Este proyecto está diseñado especialmente para profesionales de la restauración colectiva, familias, colegios y cualquier entorno que necesite adaptar menús según necesidades específicas.
