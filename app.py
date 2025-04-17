@@ -47,7 +47,3 @@ if archivo:
         file_name="menu_corregido_formato.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-
-
-
