@@ -1,81 +1,75 @@
 import streamlit as st
 import pandas as pd
-import os
 import fitz  # PyMuPDF
-import tempfile
 import tabula
+import tempfile
+import os
 from io import BytesIO
 
-# Función para extraer tablas de PDF y convertirlas a DataFrame
-def pdf_to_dataframe(pdf_path):
+# Título
+st.title("Adaptador automático de menús según tipo de dieta")
+
+# Opciones de dieta
+opciones_dieta = ["VEGANO", "OVOLACTEOVEGETARIANO", "SIN LACTOSA", "CELIACO", "SIN LACTOSA Y CELIACO"]
+dieta_seleccionada = st.selectbox("Selecciona el tipo de dieta", opciones_dieta)
+
+# Subida de archivos
+archivo_menu = st.file_uploader("Sube el archivo del menú (Excel o PDF)", type=["xlsx", "pdf"])
+
+# Subida de base de datos de sustituciones
+archivo_bd = st.file_uploader("Sube la base de datos de sustituciones", type=["xlsx"])
+
+def extraer_tabla_pdf(pdf_path):
     try:
-        dfs = tabula.read_pdf(pdf_path, pages='all', multiple_tables=False)
-        if dfs:
-            return dfs[0]
+        tables = tabula.read_pdf(pdf_path, pages='all', multiple_tables=True)
+        if tables and len(tables) > 0:
+            df = pd.concat(tables, ignore_index=True)
+            st.success("Tabla extraída correctamente del PDF.")
+            return df
         else:
+            st.error("No se pudo extraer una tabla del PDF.")
             return None
     except Exception as e:
         st.error(f"Error al extraer la tabla del PDF: {e}")
         return None
 
-# Cargar bases de datos de sustituciones
-def cargar_bases_de_datos():
-    bases = {}
-    for file in os.listdir():
-        if file.endswith('.xlsx') and file != "menu_corregido.xlsx":
-            df = pd.read_excel(file)
-            if 'PLATOS' in df.columns:
-                df.columns = [col.upper() for col in df.columns]
-                bases[file.replace(".xlsx", "").upper()] = df
-    return bases
+def aplicar_sustituciones(df_menu, df_bd, columna_dieta):
+    df_bd.columns = df_bd.columns.str.upper()
+    columna_dieta = columna_dieta.upper()
 
-# Función para aplicar las sustituciones
-def aplicar_sustituciones(df_menu, df_sustituciones, tipo_dieta):
-    df_menu_corr = df_menu.copy()
-    sustituciones = dict(zip(df_sustituciones['PLATOS'].str.upper(), df_sustituciones[tipo_dieta].str.upper()))
-    for i, row in df_menu.iterrows():
-        for col in df_menu.columns:
-            celda = str(row[col]).upper()
-            for original, reemplazo in sustituciones.items():
-                if original in celda:
-                    celda = celda.replace(original, reemplazo)
-            df_menu_corr.at[i, col] = celda
-    return df_menu_corr
+    if "PLATOS" not in df_bd.columns or columna_dieta not in df_bd.columns:
+        st.error("La base de datos no contiene las columnas necesarias ('PLATOS' y la dieta seleccionada).")
+        return None
 
-st.title("🧠 App de adaptación dietética automática desde PDF")
+    dicc_sustituciones = dict(zip(df_bd["PLATOS"].astype(str).str.upper(), df_bd[columna_dieta].astype(str)))
+    
+    df_menu_sustituido = df_menu.applymap(lambda x: dicc_sustituciones.get(str(x).upper(), x))
+    return df_menu_sustituido
 
-archivo_pdf = st.file_uploader("Sube un archivo PDF con el menú", type=["pdf"])
-tipo_dieta = st.selectbox("Selecciona el tipo de dieta", ["VEGANA", "OVOLACTEOVEGETARIANA", "CELIACO", "SIN LACTOSA", "SIN HUEVO", "SIN FRUTOS SECOS", "SIN LEGUMBRES", "SIN CERDO"])
+# Procesamiento
+if archivo_menu and archivo_bd:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(archivo_menu.name)[1]) as tmp:
+        tmp.write(archivo_menu.read())
+        tmp_path = tmp.name
 
-if archivo_pdf:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(archivo_pdf.read())
-        ruta_pdf = tmp_file.name
-
-    st.success("PDF subido correctamente. Procesando...")
-
-    df_menu = pdf_to_dataframe(ruta_pdf)
+    if archivo_menu.name.endswith(".pdf"):
+        df_menu = extraer_tabla_pdf(tmp_path)
+    else:
+        df_menu = pd.read_excel(tmp_path)
 
     if df_menu is not None:
-        bases = cargar_bases_de_datos()
-        base_encontrada = None
+        df_bd = pd.read_excel(archivo_bd)
+        df_resultado = aplicar_sustituciones(df_menu, df_bd, dieta_seleccionada)
 
-        for nombre, base in bases.items():
-            if tipo_dieta in base.columns:
-                base_encontrada = base
-                break
-
-        if base_encontrada is not None:
-            df_corregido = aplicar_sustituciones(df_menu, base_encontrada, tipo_dieta)
-
-            # Descargar Excel corregido
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_corregido.to_excel(writer, index=False, sheet_name="Menú Corregido")
-            st.download_button("📥 Descargar menú corregido (Excel)", output.getvalue(), file_name="menu_corregido.xlsx")
-        else:
-            st.error("No se encontró una base de datos compatible con la dieta seleccionada.")
-    else:
-        st.error("No se pudo extraer una tabla del PDF.")
-
+        if df_resultado is not None:
+            st.success("Menú adaptado correctamente.")
+            buffer = BytesIO()
+            df_resultado.to_excel(buffer, index=False)
+            buffer.seek(0)
+            st.download_button(
+                label="📥 Descargar Excel corregido",
+                data=buffer,
+                file_name="menu_corregido.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
