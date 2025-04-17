@@ -3,48 +3,41 @@ import pandas as pd
 import os
 from io import BytesIO
 
-# Título de la app
-st.title("Adaptador de menús según tipo de dieta")
+# Obtener lista de archivos Excel en el mismo directorio
+diet_files = [f for f in os.listdir() if f.endswith('.xlsx') and f != 'app.py']
 
-# Subida del archivo Excel
-uploaded_file = st.file_uploader("Sube tu archivo Excel con el menú", type=["xlsx"])
+# Crear diccionario: nombre en mayúsculas (sin extensión) -> nombre del archivo
+diet_options = {os.path.splitext(f)[0].upper(): f for f in diet_files}
 
-# Leer archivos de sustitución en la carpeta "data"
-def cargar_diccionarios():
-    diccionarios = {}
-    for archivo in os.listdir("data"):
-        if archivo.endswith(".xlsx"):
-            nombre_dieta = os.path.splitext(archivo)[0].upper()  # Nombre del archivo como nombre de dieta (MAYÚSCULAS)
-            df = pd.read_excel(os.path.join("data", archivo))
-            diccionario = dict(zip(df["Original"], df["Sustituto"]))
-            diccionarios[nombre_dieta] = diccionario
-    return diccionarios
+st.title("Adaptador de Menús según Dietas")
 
-diccionarios_dietas = cargar_diccionarios()
-dietas_disponibles = list(diccionarios_dietas.keys())
+uploaded_file = st.file_uploader("Sube el menú en Excel", type=["xlsx", "xls"])
+dieta_seleccionada = st.selectbox("Selecciona el tipo de dieta", list(diet_options.keys()))
 
-# Selección del tipo de dieta
-dieta_seleccionada = st.selectbox("Selecciona el tipo de dieta", dietas_disponibles)
-
-# Procesar archivo
 if uploaded_file and dieta_seleccionada:
-    hoja = st.text_input("Nombre de la hoja a modificar", value="MENÚ SIN RECOMENDACIÓN")
-    df = pd.read_excel(uploaded_file, sheet_name=hoja)
+    try:
+        df_menu = pd.read_excel(uploaded_file, sheet_name=None)
+        file_dieta = diet_options[dieta_seleccionada]
+        df_dieta = pd.read_excel(file_dieta)
 
-    sustituciones = diccionarios_dietas[dieta_seleccionada]
+        # Aplicar sustituciones a cada hoja
+        for hoja in df_menu:
+            df_menu[hoja].replace(dict(zip(df_dieta.iloc[:, 0], df_dieta.iloc[:, 1])), inplace=True)
 
-    df_modificado = df.applymap(lambda x: sustituciones.get(x, x) if isinstance(x, str) else x)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            for hoja, datos in df_menu.items():
+                datos.to_excel(writer, sheet_name=hoja, index=False)
+        output.seek(0)
 
-    # Descargar Excel modificado
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_modificado.to_excel(writer, index=False, sheet_name=hoja)
-    st.success("Menú adaptado correctamente")
+        st.success("Archivo modificado correctamente.")
+        st.download_button(
+            label="Descargar menú corregido",
+            data=output,
+            file_name="menu_corregido.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-    st.download_button(
-        label="Descargar archivo corregido",
-        data=output.getvalue(),
-        file_name=f"menu_adaptado_{dieta_seleccionada}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    except Exception as e:
+        st.error(f"Ocurrió un error: {e}")
 
