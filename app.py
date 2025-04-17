@@ -4,20 +4,23 @@ import tempfile
 import io
 import re
 
-st.set_page_config(page_title="🥦 Adaptador de Menús con IA")
+st.set_page_config(page_title="🥗 Adaptador de Menús - Sin Gluten y Personalizado")
 
-st.title("🥦 Adaptador de Menús con IA (sin gluten, manteniendo formato)")
-st.write("Sube tu menú en Excel. Reemplazamos alimentos concretos (como lentejas o pasta ECO) manteniendo el resto del texto y el diseño original.")
+st.title("🥗 Adaptador de Menús (sin gluten, mantiene diseño original)")
+st.write("Sube un archivo Excel con el menú y haremos las sustituciones necesarias manteniendo el formato del archivo.")
 
 uploaded_file = st.file_uploader("📤 Sube tu menú en formato Excel", type=["xlsx"])
 
-# Reemplazos personalizados
+# Diccionario de sustituciones
 REEMPLAZOS = {
-    r"\blentejas\b": "legumbres (no lenteja)",
-    r"\bpasta eco\b": "pasta sin gluten",
-    r"\bpasta\b": "pasta sin gluten",
-    r"\bpan\b": "pan sin gluten",
-    r"\bgalleta\b": "galleta sin gluten"
+    r"\bsalchichas frescas\b": "pechuga de pavo al horno",
+    r"\bcroquetas\b": "filete de aguja en su jugo",
+    r"\bensalada césar\b": "ensalada variada con pollo",
+    r"\bolleta alicantina\b": "legumbres (no lentejas)",
+    r"\bpizza\b": "pizza sin gluten",
+    r"\balbóndigas\b": "albóndigas sin gluten",
+    r"\bbuñuelos\b": "buñuelos sin gluten (maicena)",
+    r"\blomo adobado\b": "lomo fresco",
 }
 
 def adaptar_valor(valor):
@@ -30,7 +33,6 @@ def adaptar_valor(valor):
 
 if uploaded_file:
     try:
-        # Guardar archivo subido en una ruta temporal
         with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
             tmp.write(uploaded_file.read())
             tmp_path = tmp.name
@@ -44,27 +46,28 @@ if uploaded_file:
         preview = [[cell.value for cell in row] for row in ws.iter_rows(min_row=1, max_row=10)]
         st.dataframe(preview)
 
-        # Reemplazar palabras en celdas de texto
+        # Aplicar reemplazos
         for row in ws.iter_rows():
             for cell in row:
                 if isinstance(cell.value, str):
                     cell.value = adaptar_valor(cell.value)
 
-        # Guardar archivo modificado
+        # Guardar a memoria
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
 
-        st.success("✅ Menú adaptado sin gluten, manteniendo el formato original")
+        st.success("✅ Menú adaptado con éxito")
 
         st.download_button(
             label="📥 Descargar menú adaptado",
             data=output,
-            file_name="menu_adaptado_sin_gluten.xlsx",
+            file_name="menu_adaptado_personalizado.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
     except Exception as e:
         st.error(f"❌ Error al procesar el archivo: {e}")
+
 
 
