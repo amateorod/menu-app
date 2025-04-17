@@ -3,31 +3,35 @@ import pandas as pd
 from io import BytesIO
 import os
 
-# Mapeo de las dietas con sus archivos correspondientes
+# Mapeo actualizado con nombres reales de los archivos
 DIET_FILES = {
-    "Celiaco": "CELIACO.xlsx",
-    "Sin lactosa": "SIN LACTOSA.xlsx",
-    "Sin frutos secos": "SIN FRUTOS SECOS.xlsx",
-    "Sin legumbres": "SIN LEGUMBRES.xlsx",
-    "Vegana": "VEGANA.xlsx",
-    "Ovolactovegetariana": "OVOLACTEOVEGETARIANA.xlsx"
+    "Celiaco": ("SIN LACTOSA Y CELIACO.xlsx", "Celiaco"),
+    "Sin lactosa": ("SIN LACTOSA Y CELIACO.xlsx", "Sin lactosa"),
+    "Sin frutos secos": ("SIN FRUTOS SECOS Y LEGUMBRES.xlsx", "Sin frutos secos"),
+    "Sin legumbres": ("SIN FRUTOS SECOS Y LEGUMBRES.xlsx", "Sin legumbres"),
+    "Vegana": ("OVOLACTEOVEGETARIANA Y VEGANA.xlsx", "Vegana"),
+    "Ovolactovegetariana": ("OVOLACTEOVEGETARIANA Y VEGANA.xlsx", "Ovolactovegetariana")
 }
 
 def cargar_sustituciones(tipo_dieta):
-    archivo = DIET_FILES.get(tipo_dieta)
-    if not archivo:
+    archivo, hoja = DIET_FILES.get(tipo_dieta, (None, None))
+    if not archivo or not hoja:
         return {}
-    
+
     ruta = os.path.join("data", archivo)
-    df = pd.read_excel(ruta)
-    
+    try:
+        df = pd.read_excel(ruta, sheet_name=hoja)
+    except Exception as e:
+        st.error(f"No se pudo leer la hoja '{hoja}' del archivo '{archivo}': {e}")
+        return {}
+
     sustituciones = {}
     for _, fila in df.iterrows():
         original = str(fila[0]).strip()
         reemplazo = str(fila[1]).strip()
         if original and reemplazo:
             sustituciones[original.lower()] = reemplazo
-    
+
     return sustituciones
 
 def aplicar_sustituciones(df, sustituciones):
@@ -61,9 +65,9 @@ if archivo_subido:
     if st.button("Aplicar cambios"):
         try:
             original = pd.read_excel(archivo_subido, sheet_name=None)
-
-            hoja = list(original.keys())[0]  # Selecciona la primera hoja
+            hoja = list(original.keys())[0]
             df = original[hoja]
+
             sustituciones = cargar_sustituciones(tipo_dieta)
             df_modificado = aplicar_sustituciones(df, sustituciones)
 
