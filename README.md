@@ -1,29 +1,17 @@
+# Menu App - Adaptación de menús por dietas especiales
 
-# App de Adaptación Automática de Menús
+Esta aplicación permite subir un archivo Excel con un menú y adaptarlo automáticamente según distintos tipos de dietas: vegana, sin lactosa, sin gluten, sin huevo, sin frutos secos, etc.
 
-Esta app de Streamlit permite adaptar automáticamente menús en formato Excel según diferentes tipos de dieta (vegana, sin lactosa, sin gluten, etc.), sustituyendo ingredientes según una tabla predefinida.
+## ✅ ¿Qué hace la app?
 
-## ¿Cómo funciona?
+- Sube un archivo Excel con un menú.
+- Selecciona el tipo de dieta desde un desplegable (por ejemplo: VEGANA, CELIACO, SIN LACTOSA...).
+- Aplica automáticamente las sustituciones desde los archivos base (ej: "OVOLACTEOVEGETARIANA Y VEGANA.xlsx").
+- Genera un nuevo Excel corregido con las sustituciones hechas.
+- Mantiene el formato original del archivo lo máximo posible.
 
-1. **Selecciona el tipo de dieta** en el desplegable.
-2. **Sube un archivo Excel** con el menú original.
-3. La app aplicará automáticamente las sustituciones.
-4. **Descarga el archivo Excel modificado.**
+## 📁 Estructura del proyecto
 
-## 📁 Archivos necesarios
+Asegúrate de tener todos los archivos `.xlsx` con las sustituciones en el **mismo directorio** donde está `app.py`.
 
-- Archivos `.xlsx` con los nombres en MAYÚSCULAS (por ejemplo, `VEGANA.xlsx`, `SIN GLUTEN.xlsx`).
-- Cada archivo debe contener una hoja con el mismo nombre que el archivo (por ejemplo, `VEGANA` como nombre de hoja dentro de `VEGANA.xlsx`).
 
-## 🛠 Requisitos
-
-- Python 3.8+
-- Streamlit
-- Pandas
-- XlsxWriter
-
-## 🚀 Ejecutar localmente
-
-```bash
-streamlit run app.py
-```
