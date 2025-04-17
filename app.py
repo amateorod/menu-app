@@ -1,71 +1,61 @@
-
 import streamlit as st
 import pandas as pd
 import os
-import tempfile
-from openpyxl import load_workbook
 from io import BytesIO
 
-# Cargar todas las tablas de sustituciones desde archivos Excel
-@st.cache_data
-def load_substitution_data():
-    files = {
-        "Ovolactovegetariana y Vegano": "OVOLACTEOVEGETARIANA Y VEGANA.xlsx",
-        "Sin lactosa y Celiaco": "SIN LACTOSA Y CELIACO.xlsx",
-        "Sin frutos secos y Legumbres": "SIN FRUTOS SECOS Y LEGUMBRES.xlsx"
-    }
-    substitutions = {}
+# Diccionario para asociar cada tipo de dieta con su archivo Excel de sustituciones
+dieta_archivos = {
+    "Sin gluten": "SIN LACTOSA Y CELIACO.xlsx",
+    "Sin lactosa": "SIN LACTOSA Y CELIACO.xlsx",
+    "Vegana": "OVOLACTEOVEGETARIANA Y VEGANA.xlsx",
+    "Ovolactovegetariana": "OVOLACTEOVEGETARIANA Y VEGANA.xlsx",
+    "Sin frutos secos": "SIN FRUTOS SECOS Y LEGUMBRES.xlsx",
+    "Sin legumbres": "SIN FRUTOS SECOS Y LEGUMBRES.xlsx"
+}
 
-    for label, filename in files.items():
-        path = os.path.join("data", filename)
-        if os.path.exists(path):
-            df = pd.read_excel(path, sheet_name="Worksheet")
-            for column in df.columns[1:]:
-                substitutions[column] = dict(zip(df[df.columns[0]], df[column]))
-    
-    return substitutions
-
-# Aplicar sustituciones a una hoja
-def apply_substitutions(sheet_df, substitutions):
-    def substitute_cell(cell_value):
-        if isinstance(cell_value, str):
-            return substitutions.get(cell_value.strip(), cell_value)
-        return cell_value
-
-    return sheet_df.applymap(substitute_cell)
-
-# Interfaz de Streamlit
 st.title("Adaptador de menús según dieta")
 
-st.markdown("Sube un menú en Excel y selecciona el tipo de dieta para realizar los cambios necesarios.")
+# Selección del tipo de dieta
+dieta = st.selectbox("Selecciona el tipo de dieta a aplicar:", list(dieta_archivos.keys()))
 
-uploaded_file = st.file_uploader("Sube tu archivo Excel", type=["xlsx"])
+# Subida del archivo Excel a modificar
+archivo_menu = st.file_uploader("Sube el menú en Excel", type=["xlsx", "xls"])
 
-if uploaded_file:
-    wb = load_workbook(uploaded_file)
-    sheet_names = wb.sheetnames
-    selected_sheet = st.selectbox("Selecciona la hoja del menú", sheet_names)
+if archivo_menu:
+    df_menu = pd.read_excel(archivo_menu, sheet_name=None)
 
-    substitutions = load_substitution_data()
-    selected_diet = st.selectbox("Selecciona el tipo de dieta", list(substitutions.keys()))
+    # Cargar archivo de sustituciones
+    archivo_sustituciones = dieta_archivos[dieta]
+    if not os.path.exists(archivo_sustituciones):
+        st.error(f"No se encontró el archivo de sustituciones: {archivo_sustituciones}")
+    else:
+        df_sustituciones = pd.read_excel(archivo_sustituciones)
 
-    if st.button("Aplicar cambios"):
-        df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
-        modified_df = apply_substitutions(df, substitutions[selected_diet])
+        # Aplicar cambios a todas las hojas del menú
+        hojas_modificadas = {}
+        for nombre_hoja, hoja_df in df_menu.items():
+            hoja_modificada = hoja_df.copy()
+            for index, row in df_sustituciones.iterrows():
+                original = str(row.get("Original")).strip().lower()
+                nuevo = str(row.get(dieta)).strip()
+                if original and nuevo and original != "nan" and nuevo != "nan":
+                    hoja_modificada = hoja_modificada.applymap(
+                        lambda x: str(x).replace(row["Original"], nuevo) if isinstance(x, str) and row["Original"] in x else x
+                    )
+            hojas_modificadas[nombre_hoja] = hoja_modificada
 
-        # Escribir el resultado en memoria
+        # Guardar resultado en Excel
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_original = pd.read_excel(uploaded_file, sheet_name=None)
-            for sheet, content in df_original.items():
-                if sheet == selected_sheet:
-                    modified_df.to_excel(writer, sheet_name=sheet, index=False)
-                else:
-                    content.to_excel(writer, sheet_name=sheet, index=False)
+            for hoja, contenido in hojas_modificadas.items():
+                contenido.to_excel(writer, sheet_name=hoja, index=False)
         output.seek(0)
 
-        st.success("Menú corregido. Puedes descargarlo abajo.")
-        st.download_button(label="📥 Descargar Excel corregido",
-                           data=output,
-                           file_name="menu_corregido.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.success("Menú adaptado correctamente.")
+        st.download_button(
+            label="📥 Descargar menú adaptado en Excel",
+            data=output,
+            file_name="menu_adaptado.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
