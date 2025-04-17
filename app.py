@@ -29,40 +29,48 @@ sustituciones_dietas = {
     }
 }
 
+# Interfaz Streamlit
 st.set_page_config(page_title="Adaptador de menús", layout="wide")
 st.title("🍽️ Adaptador de menús por tipo de dieta")
 
-archivo = st.file_uploader("📁 Sube el archivo Excel del menú", type=["xlsx"])
+archivo = st.file_uploader("📁 Sube tu archivo Excel de menú", type=["xlsx"])
 
 if archivo:
-    wb = load_workbook(filename=archivo)
+    try:
+        wb = load_workbook(filename=archivo)
+        hojas = wb.sheetnames
 
-    # Selección de hoja
-    hoja_nombre = st.selectbox("📄 Elige la hoja del menú", wb.sheetnames)
+        hoja_nombre = st.selectbox("📄 Selecciona la hoja del menú a modificar:", hojas)
 
-    # Selección de adaptación dietética
-    tipo_dieta = st.selectbox("🍽️ Elige el tipo de adaptación dietética", list(sustituciones_dietas.keys()))
-
-    if st.button("🔁 Aplicar adaptación"):
-        hoja = wb[hoja_nombre]
-        sustituciones = sustituciones_dietas[tipo_dieta]
-
-        for fila in hoja.iter_rows():
-            for celda in fila:
-                if celda.value and isinstance(celda.value, str):
-                    for original, nuevo in sustituciones.items():
-                        if original in celda.value:
-                            celda.value = celda.value.replace(original, nuevo)
-
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-
-        st.success(f"✅ Menú adaptado a: {tipo_dieta}")
-        st.download_button(
-            label="📥 Descargar Excel adaptado",
-            data=output,
-            file_name=f"menu_adaptado_{tipo_dieta.lower().replace(' ', '_')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        tipo_dieta = st.selectbox(
+            "⚙️ Selecciona el tipo de adaptación que deseas aplicar:",
+            list(sustituciones_dietas.keys())
         )
+
+        if st.button("🔁 Aplicar adaptación"):
+            hoja = wb[hoja_nombre]
+            sustituciones = sustituciones_dietas[tipo_dieta]
+
+            cambios = 0
+            for fila in hoja.iter_rows():
+                for celda in fila:
+                    if celda.value and isinstance(celda.value, str):
+                        for original, nuevo in sustituciones.items():
+                            if original in celda.value:
+                                celda.value = celda.value.replace(original, nuevo)
+                                cambios += 1
+
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            st.success(f"✅ Adaptación '{tipo_dieta}' aplicada. Se han realizado {cambios} cambios.")
+            st.download_button(
+                label="📥 Descargar Excel adaptado",
+                data=output,
+                file_name=f"menu_adaptado_{tipo_dieta.lower().replace(' ', '_')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    except Exception as e:
+        st.error(f"❌ Error al procesar el archivo: {e}")
 
