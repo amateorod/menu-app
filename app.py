@@ -20,16 +20,12 @@ st.title("🍽️ Adaptador de menús con formato original")
 archivo = st.file_uploader("📁 Sube el archivo Excel del menú", type=["xlsx"])
 
 if archivo:
-    output = BytesIO()
-
-    # Cargar libro
     wb = load_workbook(filename=archivo)
-    
-    # Verificar si existe la hoja
-    nombre_hoja = "menú sin recomendación"
-    if nombre_hoja not in wb.sheetnames:
-        st.error(f"La hoja '{nombre_hoja}' no existe en el archivo.")
-    else:
+
+    # Mostrar lista de hojas disponibles para elegir
+    nombre_hoja = st.selectbox("📄 Elige la hoja del menú a modificar", wb.sheetnames)
+
+    if st.button("🔁 Aplicar sustituciones"):
         hoja = wb[nombre_hoja]
 
         # Recorrer celdas y aplicar cambios
@@ -40,13 +36,12 @@ if archivo:
                         if original in celda.value:
                             celda.value = celda.value.replace(original, nuevo)
 
-        # Guardar archivo corregido
+        # Guardar cambios a memoria
+        output = BytesIO()
         wb.save(output)
         output.seek(0)
 
         st.success("✅ Sustituciones aplicadas manteniendo el formato.")
-
-        # Botón para descargar
         st.download_button(
             label="📥 Descargar Excel corregido",
             data=output,
