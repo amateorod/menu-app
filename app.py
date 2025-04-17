@@ -15,35 +15,41 @@ sustituciones = {
 }
 
 st.set_page_config(page_title="Adaptador de menús", layout="wide")
-st.title("🍽️ Adaptador de menús con formato original (sin gluten y otras sustituciones)")
+st.title("🍽️ Adaptador de menús con formato original")
 
 archivo = st.file_uploader("📁 Sube el archivo Excel del menú", type=["xlsx"])
 
 if archivo:
     output = BytesIO()
 
-    # Cargar libro y hoja
+    # Cargar libro
     wb = load_workbook(filename=archivo)
-    hoja = wb.get_sheet_by_name("menú sin recomendación")
+    
+    # Verificar si existe la hoja
+    nombre_hoja = "menú sin recomendación"
+    if nombre_hoja not in wb.sheetnames:
+        st.error(f"La hoja '{nombre_hoja}' no existe en el archivo.")
+    else:
+        hoja = wb[nombre_hoja]
 
-    # Recorrer celdas y aplicar cambios
-    for fila in hoja.iter_rows():
-        for celda in fila:
-            if celda.value and isinstance(celda.value, str):
-                for original, nuevo in sustituciones.items():
-                    if original in celda.value:
-                        celda.value = celda.value.replace(original, nuevo)
+        # Recorrer celdas y aplicar cambios
+        for fila in hoja.iter_rows():
+            for celda in fila:
+                if celda.value and isinstance(celda.value, str):
+                    for original, nuevo in sustituciones.items():
+                        if original in celda.value:
+                            celda.value = celda.value.replace(original, nuevo)
 
-    # Guardar con cambios en memoria
-    wb.save(output)
-    output.seek(0)
+        # Guardar archivo corregido
+        wb.save(output)
+        output.seek(0)
 
-    st.success("✅ Sustituciones aplicadas con formato intacto.")
+        st.success("✅ Sustituciones aplicadas manteniendo el formato.")
 
-    # Descargar
-    st.download_button(
-        label="📥 Descargar Excel corregido con formato",
-        data=output,
-        file_name="menu_corregido_formato.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        # Botón para descargar
+        st.download_button(
+            label="📥 Descargar Excel corregido",
+            data=output,
+            file_name="menu_corregido_formato.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
