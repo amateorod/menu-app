@@ -4,4 +4,4 @@ openpyxl
 PyMuPDF
 pdfplumber
 tabula-py
-PyPDF2
+matplotlib
