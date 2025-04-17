@@ -1,58 +1,55 @@
 import streamlit as st
 import pandas as pd
-import os
 from io import BytesIO
 from openpyxl import load_workbook
 import docx
 
-st.set_page_config(page_title="Adaptador de Menús Word→Excel", layout="centered")
-st.title("🍽️ Adaptador de Menús con base en Word")
+st.set_page_config(page_title="Adaptador Word→Excel", layout="centered")
+st.title("🥗 Adaptador de Menús usando Word como base de datos")
 
-# Función para extraer tabla del Word y convertirla en DataFrame
+# Función para extraer la tabla del documento Word y convertirla en DataFrame
 def cargar_tabla_docx(docx_file):
     doc = docx.Document(docx_file)
-    data = []
     for table in doc.tables:
-        for i, row in enumerate(table.rows):
-            row_data = [cell.text.strip() for cell in row.cells]
-            data.append(row_data)
-    df = pd.DataFrame(data[1:], columns=data[0])
-    return df
+        data = []
+        for row in table.rows:
+            data.append([cell.text.strip() for cell in row.cells])
+        df = pd.DataFrame(data[1:], columns=data[0])
+        return df
+    return None
 
-# Subida del archivo de menú
+# Subida del menú Excel
 menu_excel = st.file_uploader("📤 Sube el archivo Excel del menú (hoja 'Menu sin Recomendación')", type=["xlsx"])
 
-# Subida del archivo Word con la base de sustituciones
-base_word = st.file_uploader("📄 Sube la base de datos de sustituciones (.docx)", type=["docx"])
+# Subida del documento Word con las sustituciones
+base_docx = st.file_uploader("📄 Sube el archivo Word con la base de datos de sustituciones", type=["docx"])
 
-if menu_excel and base_word:
-    # Cargar base desde Word
+if menu_excel and base_docx:
     try:
-        df_base = cargar_tabla_docx(base_word)
-        columnas = [col.upper() for col in df_base.columns if col.upper() != "PLATOS"]
-        dieta = st.selectbox("🩺 Selecciona la dieta a aplicar", columnas)
+        df_base = cargar_tabla_docx(base_docx)
+        columnas_dietas = [col for col in df_base.columns if col.upper() != "PLATOS"]
+        dieta = st.selectbox("🩺 Selecciona la dieta", columnas_dietas)
     except Exception as e:
-        st.error(f"❌ Error al procesar el documento Word: {e}")
+        st.error(f"❌ Error al procesar el archivo Word: {e}")
         st.stop()
 
     if st.button("Aplicar cambios"):
         try:
             wb = load_workbook(menu_excel)
             if "Menu sin Recomendación" not in wb.sheetnames:
-                st.error("❌ La hoja 'Menu sin Recomendación' no se encuentra en el Excel.")
+                st.error("❌ No se encontró la hoja 'Menu sin Recomendación'.")
                 st.stop()
 
             ws = wb["Menu sin Recomendación"]
 
-            # Crear diccionario de sustituciones
             sustituciones = dict(zip(df_base["PLATOS"], df_base[dieta]))
 
-            # Aplicar sustituciones manteniendo formato
             for fila in ws.iter_rows():
                 for celda in fila:
                     if celda.value and isinstance(celda.value, str):
-                        if celda.value.strip() in sustituciones and sustituciones[celda.value.strip()] != "":
-                            celda.value = sustituciones[celda.value.strip()]
+                        plato = celda.value.strip()
+                        if plato in sustituciones and sustituciones[plato] != "":
+                            celda.value = sustituciones[plato]
 
             output = BytesIO()
             wb.save(output)
@@ -67,5 +64,6 @@ if menu_excel and base_word:
             )
 
         except Exception as e:
-            st.error(f"❌ Error al aplicar cambios: {e}")
+            st.error(f"❌ Error durante el proceso: {e}")
+
 
