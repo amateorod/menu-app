@@ -2,4 +2,7 @@ streamlit
 pandas
 openpyxl
 PyMuPDF
+pdfplumber
 tabula-py
+PyPDF2
+
