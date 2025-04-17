@@ -1,87 +1,71 @@
 import streamlit as st
 import pandas as pd
 import os
-import fitz  # PyMuPDF
-import io
+from io import BytesIO
 from openpyxl import load_workbook
-from openpyxl.styles import PatternFill
-from PyPDF2 import PdfReader
+import docx
 
-# Función para extraer texto del PDF
-def extract_text_from_pdf(pdf_file):
-    text = ""
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
+st.set_page_config(page_title="Adaptador de Menús Word→Excel", layout="centered")
+st.title("🍽️ Adaptador de Menús con base en Word")
 
-# Función para cargar base de datos de sustituciones
-def load_substitution_database(file):
+# Función para extraer tabla del Word y convertirla en DataFrame
+def cargar_tabla_docx(docx_file):
+    doc = docx.Document(docx_file)
+    data = []
+    for table in doc.tables:
+        for i, row in enumerate(table.rows):
+            row_data = [cell.text.strip() for cell in row.cells]
+            data.append(row_data)
+    df = pd.DataFrame(data[1:], columns=data[0])
+    return df
+
+# Subida del archivo de menú
+menu_excel = st.file_uploader("📤 Sube el archivo Excel del menú (hoja 'Menu sin Recomendación')", type=["xlsx"])
+
+# Subida del archivo Word con la base de sustituciones
+base_word = st.file_uploader("📄 Sube la base de datos de sustituciones (.docx)", type=["docx"])
+
+if menu_excel and base_word:
+    # Cargar base desde Word
     try:
-        df = pd.read_excel(file)
-        if "PLATOS" not in df.columns:
-            return None, "La base de datos no contiene la columna 'PLATOS'."
-        return df, None
+        df_base = cargar_tabla_docx(base_word)
+        columnas = [col.upper() for col in df_base.columns if col.upper() != "PLATOS"]
+        dieta = st.selectbox("🩺 Selecciona la dieta a aplicar", columnas)
     except Exception as e:
-        return None, f"Error al cargar la base de datos: {e}"
+        st.error(f"❌ Error al procesar el documento Word: {e}")
+        st.stop()
 
-# Función para sustituir alimentos en el menú
-def replace_ingredients_in_excel(original_excel, substitutions_df):
-    try:
-        workbook = load_workbook(filename=original_excel)
-        if "Menu sin Recomendación" not in workbook.sheetnames:
-            return None, "La hoja 'Menu sin Recomendación' no se encuentra en el archivo."
-
-        sheet = workbook["Menu sin Recomendación"]
-        platos_dict = dict(zip(substitutions_df["PLATOS"], substitutions_df["VEGANO"]))
-
-        fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-
-        for row in sheet.iter_rows():
-            for cell in row:
-                if cell.value in platos_dict:
-                    cell.value = platos_dict[cell.value]
-                    cell.fill = fill
-
-        # Guardar en memoria
-        output = io.BytesIO()
-        workbook.save(output)
-        output.seek(0)
-        return output, None
-    except Exception as e:
-        return None, str(e)
-
-# Interfaz Streamlit
-st.title("Adaptador de menús PDF a dieta vegana")
-
-uploaded_pdf = st.file_uploader("Sube el menú en PDF", type=["pdf"])
-substitution_file = st.file_uploader("Sube la base de datos de sustituciones (Excel)", type=["xlsx"])
-
-if uploaded_pdf and substitution_file:
-    with st.spinner("Procesando PDF..."):
+    if st.button("Aplicar cambios"):
         try:
-            text = extract_text_from_pdf(uploaded_pdf)
-            with open("temp_text.txt", "w", encoding="utf-8") as f:
-                f.write(text)
-        except Exception as e:
-            st.error(f"Error al extraer texto del PDF: {e}")
+            wb = load_workbook(menu_excel)
+            if "Menu sin Recomendación" not in wb.sheetnames:
+                st.error("❌ La hoja 'Menu sin Recomendación' no se encuentra en el Excel.")
+                st.stop()
 
-    with st.spinner("Cargando base de datos..."):
-        substitutions_df, error = load_substitution_database(substitution_file)
-        if error:
-            st.error(error)
-        else:
-            uploaded_excel = st.file_uploader("Sube el menú original en Excel para modificarlo", type=["xlsx"])
-            if uploaded_excel:
-                with st.spinner("Aplicando sustituciones..."):
-                    modified_excel, error = replace_ingredients_in_excel(uploaded_excel, substitutions_df)
-                    if error:
-                        st.error(error)
-                    else:
-                        st.success("Sustituciones aplicadas correctamente.")
-                        st.download_button(
-                            label="Descargar Excel corregido",
-                            data=modified_excel,
-                            file_name="menu_corregido.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
+            ws = wb["Menu sin Recomendación"]
+
+            # Crear diccionario de sustituciones
+            sustituciones = dict(zip(df_base["PLATOS"], df_base[dieta]))
+
+            # Aplicar sustituciones manteniendo formato
+            for fila in ws.iter_rows():
+                for celda in fila:
+                    if celda.value and isinstance(celda.value, str):
+                        if celda.value.strip() in sustituciones and sustituciones[celda.value.strip()] != "":
+                            celda.value = sustituciones[celda.value.strip()]
+
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            st.success("✅ Cambios aplicados correctamente.")
+            st.download_button(
+                label="📥 Descargar menú corregido",
+                data=output,
+                file_name="menu_corregido.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        except Exception as e:
+            st.error(f"❌ Error al aplicar cambios: {e}")
+
