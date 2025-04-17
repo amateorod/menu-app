@@ -1,6 +1,5 @@
 import streamlit as st
-import pandas as pd
-import openpyxl
+from openpyxl import load_workbook
 from io import BytesIO
 
 # Diccionario de sustituciones
@@ -16,37 +15,36 @@ sustituciones = {
 }
 
 st.set_page_config(page_title="Adaptador de menús", layout="wide")
-st.title("🍽️ Adaptador de menús con IA (sin gluten y otras sustituciones)")
+st.title("🍽️ Adaptador de menús con formato original (sin gluten y otras sustituciones)")
 
-archivo = st.file_uploader("Sube el archivo Excel del menú", type=["xlsx"])
+archivo = st.file_uploader("📁 Sube el archivo Excel del menú", type=["xlsx"])
 
 if archivo:
-    # Cargar el archivo Excel en memoria
-    libro = pd.ExcelFile(archivo)
-    hojas = libro.sheet_names
-    hoja_seleccionada = st.selectbox("Selecciona la hoja a modificar:", hojas)
-
-    df = pd.read_excel(archivo, sheet_name=hoja_seleccionada, dtype=str)
-    df = df.fillna("")  # Evita errores con celdas vacías
-
-    # Aplicar sustituciones
-    for original, nuevo in sustituciones.items():
-        df = df.applymap(lambda x: x.replace(original, nuevo) if isinstance(x, str) else x)
-
-    st.success("Sustituciones aplicadas correctamente ✅")
-
-    st.dataframe(df)
-
-    # Botón para descargar archivo corregido
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name=hoja_seleccionada, index=False)
+
+    # Cargar libro y hoja
+    wb = load_workbook(filename=archivo)
+    hoja = wb.get_sheet_by_name("menú sin recomendación")
+
+    # Recorrer celdas y aplicar cambios
+    for fila in hoja.iter_rows():
+        for celda in fila:
+            if celda.value and isinstance(celda.value, str):
+                for original, nuevo in sustituciones.items():
+                    if original in celda.value:
+                        celda.value = celda.value.replace(original, nuevo)
+
+    # Guardar con cambios en memoria
+    wb.save(output)
     output.seek(0)
 
+    st.success("✅ Sustituciones aplicadas con formato intacto.")
+
+    # Descargar
     st.download_button(
-        label="📥 Descargar Excel corregido",
+        label="📥 Descargar Excel corregido con formato",
         data=output,
-        file_name="menu_corregido.xlsx",
+        file_name="menu_corregido_formato.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
