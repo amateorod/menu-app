@@ -1,76 +1,54 @@
 import streamlit as st
-import tempfile
-import os
-import subprocess
-import re
-from openpyxl import load_workbook
+import pandas as pd
+import openpyxl
+from io import BytesIO
 
-REEMPLAZOS = {
-    "salchichas frescas": "Pechuga de pavo al horno",
-    "croquetas de jamón": "Filete de aguja en su jugo",
-    "ensalada césar (lechuga, pollo, queso y salsa césar)": "Ensalada variada con pollo",
-    "olleta alicantina": "Legumbres (no lentejas)",
-    "pizza margarita": "Pizza sin gluten",
-    "albóndigas con salsa": "Albóndigas sin gluten",
-    "buñuelos de bacalao": "Buñuelos sin gluten (maicena)",
-    "lomo adobado": "Lomo fresco",
+# Diccionario de sustituciones
+sustituciones = {
+    "Salchichas frescas": "Pechuga de pavo al horno",
+    "Croquetas de jamón": "Filete de aguja en su jugo",
+    "Ensalada césar (lechuga, pollo, queso y salsa césar)": "Ensalada variada con pollo",
+    "Olleta alicantina": "legumbres (no lentejas)",
+    "Pizza margarita": "pizza sin gluten",
+    "Albóndigas con salsa": "Albóndigas sin gluten",
+    "Buñuelos de bacalao": "Buñuelos sin gluten (maicena)",
+    "Lomo adobado": "Lomo fresco"
 }
 
-def adaptar_valor(valor):
-    if valor is None or not isinstance(valor, str):
-        return valor
-    texto_modificado = valor
-    for buscar, reemplazo in REEMPLAZOS.items():
-        patron = re.compile(re.escape(buscar), re.IGNORECASE)
-        texto_modificado = patron.sub(reemplazo, texto_modificado)
-    return texto_modificado
+st.set_page_config(page_title="Adaptador de menús", layout="wide")
+st.title("🍽️ Adaptador de menús con IA (sin gluten y otras sustituciones)")
 
-def convertir_a_pdf_con_libreoffice(archivo_excel, carpeta_salida):
-    try:
-        subprocess.run([
-            "soffice",
-            "--headless",
-            "--convert-to", "pdf",
-            "--outdir", carpeta_salida,
-            archivo_excel
-        ], check=True)
-        return True
-    except Exception as e:
-        st.error(f"Error al convertir a PDF con LibreOffice: {e}")
-        return False
+archivo = st.file_uploader("Sube el archivo Excel del menú", type=["xlsx"])
 
-st.title("🍽️ Adaptador de Menús + PDF con LibreOffice")
+if archivo:
+    # Cargar el archivo Excel en memoria
+    libro = pd.ExcelFile(archivo)
+    hojas = libro.sheet_names
+    hoja_seleccionada = st.selectbox("Selecciona la hoja a modificar:", hojas)
 
-uploaded_file = st.file_uploader("📤 Sube tu archivo Excel (.xlsx)", type=["xlsx"])
+    df = pd.read_excel(archivo, sheet_name=hoja_seleccionada, dtype=str)
+    df = df.fillna("")  # Evita errores con celdas vacías
 
-if uploaded_file:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        original_excel_path = os.path.join(tmpdir, "original.xlsx")
-        with open(original_excel_path, "wb") as f:
-            f.write(uploaded_file.read())
+    # Aplicar sustituciones
+    for original, nuevo in sustituciones.items():
+        df = df.applymap(lambda x: x.replace(original, nuevo) if isinstance(x, str) else x)
 
-        wb = load_workbook(original_excel_path)
-        hoja_nombres = wb.sheetnames
-        hoja_seleccionada = st.selectbox("📄 Elige la hoja del menú", hoja_nombres)
-        ws = wb[hoja_seleccionada]
+    st.success("Sustituciones aplicadas correctamente ✅")
 
-        for fila in ws.iter_rows():
-            for celda in fila:
-                if isinstance(celda.value, str):
-                    celda.value = adaptar_valor(celda.value)
+    st.dataframe(df)
 
-        modificado_path = os.path.join(tmpdir, "menu_modificado.xlsx")
-        wb.save(modificado_path)
+    # Botón para descargar archivo corregido
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=hoja_seleccionada, index=False)
+    output.seek(0)
 
-        pdf_convertido = convertir_a_pdf_con_libreoffice(modificado_path, tmpdir)
-
-        with open(modificado_path, "rb") as f:
-            st.download_button("📥 Descargar Excel corregido", f, file_name="menu_adaptado.xlsx")
-
-        if pdf_convertido:
-            pdf_path = os.path.join(tmpdir, "menu_modificado.pdf")
-            with open(pdf_path, "rb") as f:
-                st.download_button("📄 Descargar PDF (con formato)", f, file_name="menu_adaptado.pdf")
+    st.download_button(
+        label="📥 Descargar Excel corregido",
+        data=output,
+        file_name="menu_corregido.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 
